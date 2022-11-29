@@ -1,0 +1,6 @@
+{
+  "name": "test-package",
+  "version": "0.0.1",
+  "displayName": "TestPackage",
+  "unity": "2020.3"
+}
