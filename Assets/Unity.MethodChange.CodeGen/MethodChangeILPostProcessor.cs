@@ -11,7 +11,7 @@ public class MethodChangeILPostProcessor : ILPostProcessor
 
     public override bool WillProcess(ICompiledAssembly compiledAssembly)
     {
-        // TestPackage飲みを対象とする
+        // TestPackageのみを対象とする
         return compiledAssembly.Name == "TestPackage";
     }
 
