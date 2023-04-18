@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -27,17 +28,12 @@ public class MethodChangeILPostProcessor : ILPostProcessor
             if (typeDefinition.Name != "SomeComponent") continue; // SomeComponentクラスのみが対象
             foreach (var methodDefinition in typeDefinition.Methods)
             {
-                // HelloメソッドとSumメソッドを見つけたら、それに対応するChangeUtilityのMethodInfoを取得する
-                var replaceMethod = methodDefinition.Name switch
+                // HelloメソッドとSumメソッドを見つけたら、それに対応するMethodDefinitionを取得する
+                var methodName = methodDefinition.Name;
+                if (methodName == "Hello" || methodName == "Sum")
                 {
-                    "Hello" => typeof(ChangeUtility).GetMethod("Hello", BindingFlags.Static | BindingFlags.Public),
-                    "Sum" => typeof(ChangeUtility).GetMethod("Sum", BindingFlags.Static | BindingFlags.Public),
-                    _ => null
-                };
-
-                if (replaceMethod != null)
-                {
-                    ReplaceMethod(assemblyDefinition, methodDefinition, replaceMethod);
+                    var replaceMethod = assemblyDefinition.MainModule.GetType(typeof(ChangeUtility).FullName).Methods.First(x => x.Name == methodName);
+                    ReplaceMethod(methodDefinition, replaceMethod);
                 }
             }
         }
@@ -48,17 +44,17 @@ public class MethodChangeILPostProcessor : ILPostProcessor
     /// <summary>
     /// メソッドの中で別のメソッドを呼ぶことでメソッドの実装を置き換える
     /// </summary>
-    private static void ReplaceMethod(AssemblyDefinition assemblyDefinition, MethodDefinition methodDefinition, MethodInfo method)
+    private static void ReplaceMethod(MethodDefinition methodDefinition, MethodDefinition replaceMethod)
     {
         var processor = methodDefinition.Body.GetILProcessor();
         // メソッドの実装のILの先頭を取得
         var first = processor.Body.Instructions[0];
 
         // 引数ロードのILコードの追加
-        for (var i = 0; i < method.GetParameters().Length; i++)
+        for (var i = 0; i < replaceMethod.Parameters.Count; i++)
         {
             var argNum = i;
-            if (method.IsStatic == false)
+            if (replaceMethod.IsStatic == false)
             {
                 // instanceメソッドではarg_0にthisが入るのでその分をずらす
                 argNum++;
@@ -78,10 +74,8 @@ public class MethodChangeILPostProcessor : ILPostProcessor
             processor.InsertBefore(first, instruction);
         }
 
-        // メソッド呼び出しに必要なMethodReferenceはModuleDefinitionのImportRefenreceメソッドで取得可能
-        var methodReference = assemblyDefinition.MainModule.ImportReference(method);
         // メソッド呼び出しのILコードの追加
-        processor.InsertBefore(first, processor.Create(OpCodes.Call, methodReference));
+        processor.InsertBefore(first, processor.Create(OpCodes.Call, replaceMethod));
         // returnのILコードの追加
         processor.InsertBefore(first, processor.Create(OpCodes.Ret));
     }
